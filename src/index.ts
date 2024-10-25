@@ -48,7 +48,8 @@ class TorControl extends EventEmitter {
    * Establish a connection to the TorControl
    */
   connect() {
-    const conn = connect(this._config.port, this._config.host);
+    // Use TOR ControlSocket (Unix socket) setting if it was set or otherwise use TOR TCP ControlPort setting
+    const conn = this._config.socketPath ? connect(this._config.socketPath) : connect({ port: this._config.port, host: this._config.host });
     this._connection = conn;
 
     return new Promise<SafeReturn<boolean, Error>>((resolve) => {
