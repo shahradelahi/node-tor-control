@@ -25,6 +25,7 @@ export interface TorControlConfig {
   port: number;
   password: string | undefined;
   socketPath: string | undefined;
+  cookiePath: string | undefined;
 }
 
 /**
