@@ -1,7 +1,7 @@
 import type { Result, ResultList, SafeReturn, Signal, TorControlConfig } from '@/types';
 import { EventEmitter } from 'node:events';
 import { connect, Socket } from 'node:net';
-import fs from 'node:fs';
+import { promises } from 'node:fs';
 
 class TorControl extends EventEmitter {
   private _connection: Socket | null = null;
@@ -213,7 +213,7 @@ class TorControl extends EventEmitter {
   async authenticateWithCookie(cookiePath: string): Promise<SafeReturn<Result, Error>> {
     try {
       // Read the cookie file
-      const cookieBuffer: Buffer = fs.readFileSync(cookiePath);
+      const cookieBuffer = await promises.readFile(cookiePath);
 
       // Convert the buffer to a hexadecimal string
       const cookie = cookieBuffer.toString('hex').trim();
