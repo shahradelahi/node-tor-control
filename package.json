@@ -25,9 +25,9 @@
     "dev": "tsup --watch",
     "build": "tsup",
     "test": "vitest --run",
-    "type-check": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.ts\"",
-    "lint:fix": "eslint --fix \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm typecheck && eslint .",
+    "lint:fix": "eslint --fix .",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\"",
     "format": "prettier --write .",
     "prepublishOnly": "pnpm lint && pnpm build && pnpm format:check && pnpm test"
