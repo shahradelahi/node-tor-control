@@ -93,7 +93,7 @@ class TorControl extends EventEmitter {
           }
         });
       } else if (this._config.cookiePath) {
-        this.authenticateWithCookie(this._config.cookiePath).then(({ error }) => {
+        this.authenticateCookieFile(this._config.cookiePath).then(({ error }) => {
           if (error) {
             this.emit('error', error);
             return resolve({ error });
@@ -198,6 +198,8 @@ class TorControl extends EventEmitter {
   /**
    * Authenticate
    *
+   * **NOTE:** Authentication is automatically done when the connection is established.
+   *
    * @link https://spec.torproject.org/control-spec/commands.html?highlight=AUTHENTICATE#authenticate
    * @param password
    */
@@ -207,23 +209,24 @@ class TorControl extends EventEmitter {
 
   /**
    * Authenticate using the cookie file
+   *
+   * This method reads the specified cookie file, converts its contents to a hexadecimal string,
+   * and then sends an AUTHENTICATE command to the Tor control port using the cookie.
+   *
    * @link https://spec.torproject.org/control-spec/commands.html?highlight=AUTHENTICATE#authenticate
-   * @param cookiePath
+   * @param {string} cookiePath - The path to the cookie file used for authentication.
    */
-  async authenticateWithCookie(cookiePath: string): Promise<SafeReturn<Result, Error>> {
-    try {
-      // Read the cookie file
-      const cookieBuffer = await promises.readFile(cookiePath);
+  async authenticateCookieFile(cookiePath: string): Promise<SafeReturn<Result, Error>> {
+    // Read the cookie file
+    const cookieBuffer = await promises.readFile(cookiePath);
 
-      // Convert the buffer to a hexadecimal string
-      const cookie = cookieBuffer.toString('hex').trim();
+    // Convert the buffer to a hexadecimal string
+    const cookie = cookieBuffer.toString('hex').trim();
 
-      // Send the AUTHENTICATE command with the cookie
-      return this._solveAndPick(this.sendCommand(`AUTHENTICATE ${cookie}`));
-    } catch (error: Error | any) {
-      return { error: new Error(`Failed to read cookie file: ${error.message}`) };
-    }
+    // Send the AUTHENTICATE command with the cookie
+    return this.authenticate(cookie);
   }
+
   /**
    * Quit
    *
