@@ -21,6 +21,13 @@ const tc = new TorControl({
   password: 'secure-password'
 });
 
+// Or, if you want to control via Tor Unix socket:
+// const tc = new TorControl({
+//   socketPath: '/var/run/tor/control', // Use unix socket control instead of TCP host
+//   password: 'secure-password'
+//   // cookiePath: '/var/run/tor/control.authcookie', // Set Cookie file for authentication if Tor is running with Cookie Autentication
+// });
+
 tc.connect().then(async () => {
   const { data } = await tc.getNewIdentity();
   console.log(data); // { code: 250, message: 'OK' }

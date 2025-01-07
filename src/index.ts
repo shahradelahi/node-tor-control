@@ -1,6 +1,7 @@
 import type { Result, ResultList, SafeReturn, Signal, TorControlConfig } from '@/types';
 import { EventEmitter } from 'node:events';
 import { connect, Socket } from 'node:net';
+import { promises } from 'node:fs';
 
 class TorControl extends EventEmitter {
   private _connection: Socket | null = null;
@@ -48,7 +49,10 @@ class TorControl extends EventEmitter {
    * Establish a connection to the TorControl
    */
   connect() {
-    const conn = connect(this._config.port, this._config.host);
+    // Use TOR ControlSocket (Unix socket) setting if it was set or otherwise use TOR TCP ControlPort setting
+    const conn = this._config.socketPath
+      ? connect(this._config.socketPath)
+      : connect({ port: this._config.port, host: this._config.host });
     this._connection = conn;
 
     return new Promise<SafeReturn<boolean, Error>>((resolve) => {
@@ -83,6 +87,13 @@ class TorControl extends EventEmitter {
       // Auth
       if (this._config.password) {
         this.authenticate(this._config.password).then(({ error }) => {
+          if (error) {
+            this.emit('error', error);
+            return resolve({ error });
+          }
+        });
+      } else if (this._config.cookiePath) {
+        this.authenticateWithCookie(this._config.cookiePath).then(({ error }) => {
           if (error) {
             this.emit('error', error);
             return resolve({ error });
@@ -194,6 +205,25 @@ class TorControl extends EventEmitter {
     return this._solveAndPick(this.sendCommand(`AUTHENTICATE "${password}"`));
   }
 
+  /**
+   * Authenticate using the cookie file
+   * @link https://spec.torproject.org/control-spec/commands.html?highlight=AUTHENTICATE#authenticate
+   * @param cookiePath
+   */
+  async authenticateWithCookie(cookiePath: string): Promise<SafeReturn<Result, Error>> {
+    try {
+      // Read the cookie file
+      const cookieBuffer = await promises.readFile(cookiePath);
+
+      // Convert the buffer to a hexadecimal string
+      const cookie = cookieBuffer.toString('hex').trim();
+
+      // Send the AUTHENTICATE command with the cookie
+      return this._solveAndPick(this.sendCommand(`AUTHENTICATE ${cookie}`));
+    } catch (error: Error | any) {
+      return { error: new Error(`Failed to read cookie file: ${error.message}`) };
+    }
+  }
   /**
    * Quit
    *
