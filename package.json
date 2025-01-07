@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "type": "module",
   "files": [
     "dist/**"
   ],
@@ -23,30 +24,27 @@
   "scripts": {
     "dev": "tsup --watch",
     "build": "tsup",
-    "test": "mocha \"**/*.test.ts\"",
+    "test": "vitest --run",
     "type-check": "tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint --fix \"src/**/*.ts\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\"",
     "format": "prettier --write .",
-    "prepublishOnly": "pnpm run test && pnpm run format:check && pnpm run lint && pnpm run build"
+    "prepublishOnly": "pnpm lint && pnpm build && pnpm format:check && pnpm test"
   },
   "packageManager": "pnpm@9.15.3",
   "devDependencies": {
-    "@types/chai": "^5.0.1",
     "@types/debug": "^4.1.12",
-    "@types/mocha": "^10.0.10",
     "@types/node": "^22.10.5",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "chai": "^5.1.2",
     "debug": "^4.4.0",
-    "dotenv": "^16.4.7",
     "eslint": "^8.57.1",
-    "mocha": "^11.0.1",
     "prettier": "^3.4.2",
+    "testcontainers": "^10.16.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   },
   "repository": {
     "type": "git",
