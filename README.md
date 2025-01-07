@@ -51,7 +51,7 @@ For more examples, check out the [examples](/examples) directory.
 
 Want to contribute? Awesome! To show your support is to star the project, or to raise issues on [GitHub](https://github.com/shahradelahi/node-tor-control).
 
-Thanks again for your support, it is much appreciated!
+Thanks again for your support, it is much appreciated! 🙏
 
 ## License
 
