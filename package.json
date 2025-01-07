@@ -24,13 +24,13 @@
   "scripts": {
     "dev": "tsup --watch",
     "build": "tsup",
-    "test": "mocha \"**/*.test.ts\"",
+    "test": "vitest --run",
     "type-check": "tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint --fix \"src/**/*.ts\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\"",
     "format": "prettier --write .",
-    "prepublishOnly": "pnpm run test && pnpm run format:check && pnpm run lint && pnpm run build"
+    "prepublishOnly": "pnpm lint && pnpm build && pnpm format:check && pnpm test"
   },
   "packageManager": "pnpm@9.15.3",
   "devDependencies": {

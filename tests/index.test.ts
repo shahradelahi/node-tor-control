@@ -1,11 +1,10 @@
 import { expect, describe, beforeAll, afterAll, test } from 'vitest';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { TorControl } from '@/index';
-// import { promises } from 'node:fs';
 
 describe('Tor Control', () => {
   const PASSWORD = 'password';
-  const PORT = 9051;
+  const PORT = 59051;
 
   const container = new GenericContainer('ghcr.io/shahradelahi/torproxy')
     .withEnvironment({
@@ -13,18 +12,13 @@ describe('Tor Control', () => {
       TOR_CONTROL_PORT: `0.0.0.0:${PORT}`
     })
     .withExposedPorts(PORT)
-    .withWaitStrategy(Wait.forLogMessage('Opened Control listener connection (ready)', 1));
+    .withWaitStrategy(Wait.forLogMessage('Bootstrapped 100%', 1));
 
   let testContainer: StartedTestContainer;
 
   async function getTestContainer() {
     if (!testContainer) {
       testContainer = await container.start();
-      // const readable = await testContainer.logs();
-      // await promises.writeFile('logs.txt', '');
-      // readable.on('data', async (chunk) => {
-      //   await promises.appendFile('logs.txt', chunk);
-      // });
     }
     return testContainer;
   }
