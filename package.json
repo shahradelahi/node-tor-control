@@ -2,25 +2,31 @@
   "name": "tor-ctrl",
   "version": "0.1.0",
   "description": "Node.js library for accessing the Tor control port",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "type": "module",
-  "files": [
-    "dist/**"
+  "keywords": [
+    "node",
+    "bun",
+    "tor",
+    "control",
+    "port",
+    "protocol"
   ],
+  "homepage": "https://github.com/shahradelahi/node-tor-control",
+  "repository": "github:shahradelahi/node-tor-control",
+  "license": "GPL-3.0",
+  "author": "Shahrad Elahi <shahrad@litehex.com> (https://github.com/shahradelahi)",
+  "type": "module",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.mts",
-        "default": "./dist/index.mjs"
-      },
-      "require": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
+      "import": "./dist/index.js",
+      "default": "./dist/index.cjs"
     }
   },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**",
+    "!**/*.d.cts"
+  ],
   "scripts": {
     "dev": "tsup --watch",
     "build": "tsup",
@@ -32,7 +38,6 @@
     "format": "prettier --write .",
     "prepublishOnly": "pnpm lint && pnpm build && pnpm format:check && pnpm test"
   },
-  "packageManager": "pnpm@9.15.3",
   "devDependencies": {
     "@shahrad/eslint-config": "^1.0.0",
     "@types/debug": "^4.1.12",
@@ -46,21 +51,5 @@
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/shahradelahi/node-tor-control.git"
-  },
-  "keywords": [
-    "node",
-    "bun",
-    "tor",
-    "control",
-    "port"
-  ],
-  "author": "Shahrad Elahi <shahrad@litehex.com> (https://github.com/shahradelahi)",
-  "license": "GPL-3.0",
-  "bugs": {
-    "url": "https://github.com/shahradelahi/node-tor-control/issues"
-  },
-  "homepage": "https://github.com/shahradelahi/node-tor-control#readme"
+  "packageManager": "pnpm@9.15.3"
 }
