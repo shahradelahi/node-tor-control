@@ -5,6 +5,7 @@ export default defineConfig({
   dts: true,
   entry: ['src/index.ts'],
   format: ['cjs', 'esm'],
+  external: ['debug'],
   target: 'esnext',
   outDir: 'dist'
 });
