@@ -51,7 +51,7 @@
     "@types/node": "^24.7.2",
     "eslint": "^9.37.0",
     "prettier": "^3.6.2",
-    "testcontainers": "^10.16.0",
+    "testcontainers": "^11.0.0",
     "tsup": "^8.5.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
