@@ -20,30 +20,20 @@ In below example, we are requesting for a new identity from Tor.
 ```typescript
 import { TorControl } from 'tor-ctrl';
 
-async function main() {
-  const tc = new TorControl({
-    host: 'localhost',
-    port: 9051,
-    // Or, if you want to control via Tor Unix socket:
-    // socketPath: '/var/run/tor/control',
-    password: 'secure-password',
-  });
+const tc = new TorControl({
+  host: 'localhost',
+  port: 9051,
+  // Or, if you want to control via Tor Unix socket:
+  // socketPath: '/var/run/tor/control',
+  password: 'secure-password',
+});
 
-  try {
-    await tc.connect();
+await tc.connect();
 
-    const data = await tc.getNewIdentity();
-    console.log(data); // { code: 250, message: 'OK' }
-  } catch (err) {
-    console.error(err);
-  } finally {
-    if (tc.state === 'connected') {
-      await tc.disconnect();
-    }
-  }
-}
+const data = await tc.getNewIdentity();
+console.log(data); // { code: 250, message: 'OK' }
 
-main();
+await tc.disconnect();
 ```
 
 ###### Send a Custom Command

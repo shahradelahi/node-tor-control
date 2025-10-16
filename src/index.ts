@@ -6,7 +6,7 @@ import type { Result, ResultList, Signal, TorControlConfig } from '@/types';
 
 const debug = Debug('tor-ctrl');
 
-class TorControl {
+class TorControl implements Disposable {
   #connection: Socket | null = null;
   #config: TorControlConfig;
   #state: 'connected' | 'disconnected' = 'disconnected';
@@ -96,8 +96,20 @@ class TorControl {
     }
   }
 
-  get disconnected() {
-    return this.#connection === null;
+  /**
+   * Dispose the connection to the TorControl
+   *
+   * This method is called when the `using` statement is used on an instance of the class.
+   *
+   * Example:
+   * ```typescript
+   * using tor = new TorControl();
+   * await tor.connect();
+   * // ...
+   * ```
+   */
+  [Symbol.dispose](): void {
+    this.disconnect().catch(() => {});
   }
 
   /**
