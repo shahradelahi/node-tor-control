@@ -7,5 +7,5 @@ export default defineConfig({
   format: ['cjs', 'esm'],
   external: ['debug'],
   target: 'esnext',
-  outDir: 'dist'
+  outDir: 'dist',
 });

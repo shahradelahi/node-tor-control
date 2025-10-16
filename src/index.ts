@@ -1,124 +1,103 @@
-import type { Result, ResultList, SafeReturn, Signal, TorControlConfig } from '@/types';
-import { EventEmitter } from 'node:events';
-import { connect, Socket } from 'node:net';
 import { promises } from 'node:fs';
+import { connect, Socket } from 'node:net';
+import Debug from 'debug';
 
-class TorControl extends EventEmitter {
-  private _connection: Socket | null = null;
-  private _config: TorControlConfig;
-  private _state: 'connected' | 'disconnected' = 'disconnected';
-  private _debugger: ((...args: any[]) => void) | null = null;
+import type { Result, ResultList, Signal, TorControlConfig } from '@/types';
+
+const debug = Debug('tor-ctrl');
+
+class TorControl {
+  #connection: Socket | null = null;
+  #config: TorControlConfig;
+  #state: 'connected' | 'disconnected' = 'disconnected';
 
   /**
    * Get the current connection state of the TorControl
    */
   get state() {
-    return this._state;
+    return this.#state;
   }
 
   constructor(config: Partial<TorControlConfig> = {}) {
-    super();
-
-    if (!Object.prototype.hasOwnProperty.call(config, 'host')) {
-      config.host = 'localhost';
-    }
-
-    if (!Object.prototype.hasOwnProperty.call(config, 'port')) {
-      config.port = 9051;
-    }
-
-    this._config = config as TorControlConfig;
-
-    // Add debug
-    import('debug')
-      .then((pkg) => {
-        if (pkg) {
-          this._debugger = pkg.default('tor-ctrl');
-        }
-      })
-      .catch(() => {});
-  }
-
-  private _debug(...args: any[]) {
-    if (this._debugger) {
-      this._debugger(...args);
-    }
+    this.#config = {
+      host: 'localhost',
+      port: 9051,
+      password: undefined,
+      socketPath: undefined,
+      cookiePath: undefined,
+      ...config,
+    };
   }
 
   /**
    * Establish a connection to the TorControl
    */
-  connect() {
-    // Use TOR ControlSocket (Unix socket) setting if it was set or otherwise use TOR TCP ControlPort setting
-    const conn = this._config.socketPath
-      ? connect(this._config.socketPath)
-      : connect({ port: this._config.port, host: this._config.host });
-    this._connection = conn;
+  async connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const conn = this.#config.socketPath
+        ? connect(this.#config.socketPath)
+        : connect({ port: this.#config.port, host: this.#config.host });
+      this.#connection = conn;
 
-    return new Promise<SafeReturn<boolean, Error>>((resolve) => {
-      // Handle error
-      conn.on('error', (err) => {
+      const onError = (err: Error | string) => {
         const error = err instanceof Error ? err : new Error(`TorControl connection error: ${err}`);
-        this.emit('error', error);
-        return resolve({ error });
-      });
-
-      // Connection established
-      conn.once('data', (data) => {
-        const str = data.toString();
-        this._debug('data:', str);
-
-        if (str.substring(0, 3) === '250') {
-          this.emit('connect', conn);
-          return resolve({ data: true });
+        this.#state = 'disconnected';
+        if (!conn.destroyed) {
+          conn.destroy();
         }
+        this.#connection = null;
+        reject(error);
+      };
 
-        const error = new Error(`TorControl connection error: ${data}`);
-        this.emit('error', error);
-        return resolve({ error });
+      conn.on('connect', async () => {
+        try {
+          if (this.#config.password) {
+            await this.authenticate(this.#config.password);
+          } else if (this.#config.cookiePath) {
+            await this.authenticateCookieFile(this.#config.cookiePath);
+          }
+          this.#state = 'connected';
+          conn.removeListener('error', onError);
+          resolve();
+        } catch (error) {
+          onError(error as Error);
+        }
       });
 
-      // Connection closed
+      conn.on('error', onError);
       conn.on('close', () => {
-        this._state = 'disconnected';
-        this.emit('close');
+        this.#state = 'disconnected';
+        this.#connection = null;
       });
 
-      // Auth
-      if (this._config.password) {
-        this.authenticate(this._config.password).then(({ error }) => {
-          if (error) {
-            this.emit('error', error);
-            return resolve({ error });
-          }
-        });
-      } else if (this._config.cookiePath) {
-        this.authenticateCookieFile(this._config.cookiePath).then(({ error }) => {
-          if (error) {
-            this.emit('error', error);
-            return resolve({ error });
-          }
-        });
-      }
+      conn.once('data', async (data) => {
+        const str = data.toString();
+        debug('data:', str);
+
+        if (str.substring(0, 3) !== '250') {
+          return onError(`TorControl connection error: ${data}`);
+        }
+      });
     });
   }
 
   /**
    * Close the connection to the TorControl
    */
-  async disconnect() {
-    if (this._connection) {
-      // Send QUIT command
-      await this.quit();
-
-      // Flush the connection
-      this._connection.end();
-      this._connection = null;
+  async disconnect(): Promise<void> {
+    if (this.#connection) {
+      try {
+        await this.quit();
+      } finally {
+        this.#connection.end();
+        this.#connection = null;
+        this.#state = 'disconnected';
+      }
     }
   }
 
   get disconnected() {
-    return this._connection === null;
+    return this.#connection === null;
   }
 
   /**
@@ -126,69 +105,56 @@ class TorControl extends EventEmitter {
    *
    * Example:
    * ```typescript
-   *  const { data, error } = await torControl.sendCommand(['GETINFO', 'version']);
-   *  if (error) {
-   *    console.error('Error:', error);
-   *    return;
-   *  }
+   *  const data = await torControl.sendCommand(['GETINFO', 'version']);
    *  console.log('GETINFO:', data); // { code: 250, message: 'version=...' }
    * ```
    *
    * @link https://spec.torproject.org/control-spec/commands.html
    * @param command
    */
-  async sendCommand(command: string | string[]): Promise<SafeReturn<ResultList, Error>> {
-    if (!this._connection) {
-      const error = new Error('TorControl not connected');
-      this.emit('error', error);
-      return { error };
+  async sendCommand(command: string | string[]): Promise<ResultList> {
+    if (!this.#connection) {
+      throw new Error('TorControl not connected');
     }
 
-    const conn = this._connection;
+    const conn = this.#connection;
 
     if (Array.isArray(command)) {
       command = command.join(' ');
     }
 
-    return new Promise((resolve) => {
-      // Handle data
-      conn.once('data', (data) => {
+    return new Promise((resolve, reject) => {
+      const onData = (data: Buffer) => {
         const str = data.toString();
-        this._debug('sendCommand:data', str, str.split(''));
+        debug('sendCommand:data', str);
 
-        const lines = str.split(/\r?\n/);
-        this._debug('sendCommand:lines', lines);
+        const lines = str.split(/\r?\n/).filter(Boolean);
+        debug('sendCommand:lines', lines);
 
-        const result: ResultList = [];
-
-        for (const line of lines) {
-          if (line !== '') {
-            const message = line.substring(4);
-            const code = Number(line.substring(0, 3));
-
-            this._debug('sendCommand:message', message);
-            this.emit('data', message);
-
-            result.push({ code, message });
+        const result: ResultList = lines.map((line) => {
+          const message = line.substring(4);
+          const code = Number(line.substring(0, 3));
+          if (code >= 400) {
+            conn.removeListener('error', onError);
+            reject(new Error(message));
           }
-        }
+          return { code, message };
+        });
 
-        return resolve({ data: result });
-      });
+        conn.removeListener('error', onError);
+        resolve(result);
+      };
 
-      // Write the command
-      this._debug('sendCommand:command', command);
+      const onError = (err: Error) => {
+        reject(err);
+      };
+
+      conn.once('data', onData);
+      conn.once('error', onError);
+
+      debug('sendCommand:command', command);
       conn.write(`${command}\r\n`);
     });
-  }
-
-  private async _solveAndPick(
-    promise: Promise<SafeReturn<ResultList, Error>>,
-    pick: number = 0
-  ): Promise<SafeReturn<Result, Error>> {
-    const { data, error } = await promise;
-    if (error) return { error };
-    return { data: data[pick] };
   }
 
   // ===============================
@@ -203,8 +169,9 @@ class TorControl extends EventEmitter {
    * @link https://spec.torproject.org/control-spec/commands.html?highlight=AUTHENTICATE#authenticate
    * @param password
    */
-  async authenticate(password: string): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(`AUTHENTICATE "${password}"`));
+  async authenticate(password: string): Promise<Result> {
+    const result = await this.sendCommand(`AUTHENTICATE "${password}"`);
+    return result[0];
   }
 
   /**
@@ -216,7 +183,7 @@ class TorControl extends EventEmitter {
    * @link https://spec.torproject.org/control-spec/commands.html?highlight=AUTHENTICATE#authenticate
    * @param {string} cookiePath - The path to the cookie file used for authentication.
    */
-  async authenticateCookieFile(cookiePath: string): Promise<SafeReturn<Result, Error>> {
+  async authenticateCookieFile(cookiePath: string): Promise<Result> {
     // Read the cookie file
     const cookieBuffer = await promises.readFile(cookiePath);
 
@@ -232,27 +199,27 @@ class TorControl extends EventEmitter {
    *
    * @link https://spec.torproject.org/control-spec/commands.html?highlight=QUIT#quit
    */
-  async quit(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand('QUIT'));
+  async quit(): Promise<Result> {
+    const result = await this.sendCommand('QUIT');
+    return result[0];
   }
 
   /**
    * Example:
    *
    * ```typescript
-   * const { data, error } = await torControl.getConfig('SocksPort');
-   * if (data) {
-   *  console.log('SocksPort:', data); // SocksPort: 9050
+   * const socksPort = await torControl.getConfig('SocksPort');
+   * if (socksPort) {
+   *  console.log('SocksPort:', socksPort); // SocksPort: 9050
    * }
    * ```
    *
    * @link https://spec.torproject.org/control-spec/commands.html?highlight=GETCONF#getconf
    * @param key
    */
-  async getConfig(key: string): Promise<SafeReturn<string, Error>> {
-    const { data, error } = await this._solveAndPick(this.sendCommand(['GETCONF', key]));
-    if (error) return { error };
-    return { data: data.message.split('=')[1] };
+  async getConfig(key: string): Promise<string> {
+    const result = await this.sendCommand(['GETCONF', key]);
+    return result[0].message.split('=')[1];
   }
 
   /**
@@ -260,64 +227,76 @@ class TorControl extends EventEmitter {
    * @param key
    * @param value
    */
-  async setConfig(key: string, value: string): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(['SETCONF', `${key}=${value}`]));
+  async setConfig(key: string, value: string): Promise<Result> {
+    const result = await this.sendCommand(['SETCONF', `${key}=${value}`]);
+    return result[0];
   }
 
   /**
    * @link https://spec.torproject.org/control-spec/commands.html?highlight=RESETCONF#resetconf
    * @param key
    */
-  async resetConfig(key: string): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(['RESETCONF', key]));
+  async resetConfig(key: string): Promise<Result> {
+    const result = await this.sendCommand(['RESETCONF', key]);
+    return result[0];
   }
 
   // ===============================
   // Signals
   // ===============================
 
-  async signal(signal: Signal | string): Promise<SafeReturn<ResultList, Error>> {
+  async signal(signal: Signal | string): Promise<ResultList> {
     return this.sendCommand(['SIGNAL', signal]);
   }
 
-  async signalReload(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('RELOAD'));
+  async signalReload(): Promise<Result> {
+    const result = await this.signal('RELOAD');
+    return result[0];
   }
 
-  async signalShutdown(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('SHUTDOWN'));
+  async signalShutdown(): Promise<Result> {
+    const result = await this.signal('SHUTDOWN');
+    return result[0];
   }
 
-  async signalDump(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('DUMP'));
+  async signalDump(): Promise<Result> {
+    const result = await this.signal('DUMP');
+    return result[0];
   }
 
-  async signalDebug(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('DEBUG'));
+  async signalDebug(): Promise<Result> {
+    const result = await this.signal('DEBUG');
+    return result[0];
   }
 
-  async signalHalt(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('HALT'));
+  async signalHalt(): Promise<Result> {
+    const result = await this.signal('HALT');
+    return result[0];
   }
 
-  async signalTerm(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('TERM'));
+  async signalTerm(): Promise<Result> {
+    const result = await this.signal('TERM');
+    return result[0];
   }
 
-  async signalNewNym(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('NEWNYM'));
+  async signalNewNym(): Promise<Result> {
+    const result = await this.signal('NEWNYM');
+    return result[0];
   }
 
-  async signalClearDnsCache(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('CLEARDNSCACHE'));
+  async signalClearDnsCache(): Promise<Result> {
+    const result = await this.signal('CLEARDNSCACHE');
+    return result[0];
   }
 
-  async signalUsr1(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('USR1'));
+  async signalUsr1(): Promise<Result> {
+    const result = await this.signal('USR1');
+    return result[0];
   }
 
-  async signalUsr2(): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.signal('USR2'));
+  async signalUsr2(): Promise<Result> {
+    const result = await this.signal('USR2');
+    return result[0];
   }
 
   // ===============================
@@ -328,17 +307,18 @@ class TorControl extends EventEmitter {
    * Example:
    *
    * ```typescript
-   * const { data, error } = await torControl.getInfo('version');
-   * if (data) {
-   *  console.log('Version:', data); // Version: Tor
+   * const version = await torControl.getInfo('version');
+   * if (version) {
+   *  console.log('Version:', version); // Version: Tor
    * }
    * ```
    *
    * @link https://spec.torproject.org/control-spec/commands.html?highlight=GETINFO#getinfo
    * @param key
    */
-  async getInfo(key: string): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(['GETINFO', key]));
+  async getInfo(key: string): Promise<Result> {
+    const result = await this.sendCommand(['GETINFO', key]);
+    return result[0];
   }
 
   /**
@@ -356,16 +336,18 @@ class TorControl extends EventEmitter {
    * @param address
    * @param target
    */
-  async mapAddress(address: string, target: string): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(['MAPADDRESS', `${address}=${target}`]));
+  async mapAddress(address: string, target: string): Promise<Result> {
+    const result = await this.sendCommand(['MAPADDRESS', `${address}=${target}`]);
+    return result[0];
   }
 
   // ===============================
   // Circuit
   // ===============================
 
-  async extendCircuit(circuitId: string): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(['EXTENDCIRCUIT', circuitId]));
+  async extendCircuit(circuitId: string): Promise<Result> {
+    const result = await this.sendCommand(['EXTENDCIRCUIT', circuitId]);
+    return result[0];
   }
 
   /**
@@ -373,8 +355,9 @@ class TorControl extends EventEmitter {
    * @param circuitId
    * @param purpose
    */
-  async setCircuitPurpose(circuitId: string, purpose: string): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(['SETCIRCUITPURPOSE', circuitId, purpose]));
+  async setCircuitPurpose(circuitId: string, purpose: string): Promise<Result> {
+    const result = await this.sendCommand(['SETCIRCUITPURPOSE', circuitId, purpose]);
+    return result[0];
   }
 
   /**
@@ -382,11 +365,9 @@ class TorControl extends EventEmitter {
    * @param nicknameOrKey
    * @param purpose
    */
-  async setRouterPurpose(
-    nicknameOrKey: string,
-    purpose: string
-  ): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(['SETROUTERPURPOSE', nicknameOrKey, purpose]));
+  async setRouterPurpose(nicknameOrKey: string, purpose: string): Promise<Result> {
+    const result = await this.sendCommand(['SETROUTERPURPOSE', nicknameOrKey, purpose]);
+    return result[0];
   }
 
   /**
@@ -394,16 +375,18 @@ class TorControl extends EventEmitter {
    * @param streamId
    * @param reason
    */
-  async setStream(streamId: string, reason: string): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(['CLOSESTREAM', streamId, reason]));
+  async setStream(streamId: string, reason: string): Promise<Result> {
+    const result = await this.sendCommand(['CLOSESTREAM', streamId, reason]);
+    return result[0];
   }
 
   /**
    * @link https://spec.torproject.org/control-spec/commands.html?highlight=CLOSECIRCUIT#closecircuit
    * @param circuitId
    */
-  async closeCircuit(circuitId: string): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(this.sendCommand(['CLOSECIRCUIT', circuitId]));
+  async closeCircuit(circuitId: string): Promise<Result> {
+    const result = await this.sendCommand(['CLOSECIRCUIT', circuitId]);
+    return result[0];
   }
 
   /**
@@ -416,10 +399,14 @@ class TorControl extends EventEmitter {
     streamId: string,
     circuitId: string,
     hop: number | undefined
-  ): Promise<SafeReturn<Result, Error>> {
-    return this._solveAndPick(
-      this.sendCommand(['ATTACHSTREAM', streamId, circuitId, hop ? String(hop) : ''])
-    );
+  ): Promise<Result> {
+    const result = await this.sendCommand([
+      'ATTACHSTREAM',
+      streamId,
+      circuitId,
+      hop ? String(hop) : '',
+    ]);
+    return result[0];
   }
 
   // ===============================
@@ -429,7 +416,7 @@ class TorControl extends EventEmitter {
   /**
    * Alias for `signalNewNym`
    */
-  async getNewIdentity(): Promise<SafeReturn<Result, Error>> {
+  async getNewIdentity(): Promise<Result> {
     return this.signalNewNym();
   }
 }

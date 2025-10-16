@@ -2,25 +2,25 @@ import { defineConfig } from '@shahrad/eslint-config';
 
 export default defineConfig(
   {
-    ignores: ['dist/**']
+    ignores: ['dist/**'],
   },
 
   {
     languageOptions: {
       ecmaVersion: 'latest',
-      sourceType: 'module'
+      sourceType: 'module',
     },
     rules: {
       'no-console': 'error',
       '@typescript-eslint/semi': 'off',
-      '@typescript-eslint/no-explicit-any': 'off'
-    }
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
   },
 
   {
     files: ['examples/**/*.ts'],
     rules: {
-      'no-console': 'off'
-    }
+      'no-console': 'off',
+    },
   }
 );

@@ -20,20 +20,30 @@ In below example, we are requesting for a new identity from Tor.
 ```typescript
 import { TorControl } from 'tor-ctrl';
 
-const tc = new TorControl({
-  host: 'localhost',
-  port: 9051,
-  // Or, if you want to control via Tor Unix socket:
-  // socketPath: '/var/run/tor/control',
-  password: 'secure-password'
-});
+async function main() {
+  const tc = new TorControl({
+    host: 'localhost',
+    port: 9051,
+    // Or, if you want to control via Tor Unix socket:
+    // socketPath: '/var/run/tor/control',
+    password: 'secure-password',
+  });
 
-await tc.connect();
+  try {
+    await tc.connect();
 
-const { data } = await tc.getNewIdentity();
-console.log(data); // { code: 250, message: 'OK' }
+    const data = await tc.getNewIdentity();
+    console.log(data); // { code: 250, message: 'OK' }
+  } catch (err) {
+    console.error(err);
+  } finally {
+    if (tc.state === 'connected') {
+      await tc.disconnect();
+    }
+  }
+}
 
-await tc.disconnect();
+main();
 ```
 
 ###### Send a Custom Command
@@ -41,7 +51,8 @@ await tc.disconnect();
 If you don't know the available commands, please first check out the official the [Tor Control Protocol](https://spec.torproject.org/control-spec/commands.html) specifications.
 
 ```typescript
-const { data, error } = await tc.sendCommand(['GETINFO', 'version', 'config-file']);
+// ... inside the try block after connect()
+const data = await tc.sendCommand(['GETINFO', 'version', 'config-file']);
 console.log(data); // [ { code: NUM, message: STRING }, ... ]
 ```
 
