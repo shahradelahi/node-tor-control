@@ -1,5 +1,6 @@
-import { expect, describe, beforeAll, afterAll, test } from 'vitest';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+
 import { TorControl } from '@/index';
 
 describe('Tor Control', () => {
@@ -9,7 +10,7 @@ describe('Tor Control', () => {
   const container = new GenericContainer('ghcr.io/shahradelahi/torproxy')
     .withEnvironment({
       TOR_CONTROL_PASSWD: PASSWORD,
-      TOR_CONTROL_PORT: `0.0.0.0:${PORT}`
+      TOR_CONTROL_PORT: `0.0.0.0:${PORT}`,
     })
     .withExposedPorts(PORT)
     .withWaitStrategy(Wait.forLogMessage('Bootstrapped 100%', 1));
@@ -30,13 +31,13 @@ describe('Tor Control', () => {
     return new TorControl({
       host,
       port,
-      password: PASSWORD
+      password: PASSWORD,
     });
   }
 
   beforeAll(async () => {
     await getTestContainer();
-  });
+  }, 120000);
 
   afterAll(async () => {
     if (testContainer) {
@@ -47,14 +48,16 @@ describe('Tor Control', () => {
   test('should connect to the Tor Control', async () => {
     const tor = await getClient();
 
-    const connected = await tor.connect();
-    expect(connected?.data).to.be.true;
+    await tor.connect();
+    expect(tor.state).to.equal('connected');
 
-    const { data, error } = await tor.getInfo('version');
-    expect(error).to.be.undefined;
+    const data = await tor.getInfo('version');
     expect(data)
       .to.be.a('object')
       .that.has.property('message')
       .that.matches(/^version=\d+\.\d+\.\d+\.\d+$/);
+
+    await tor.disconnect();
+    expect(tor.state).to.equal('disconnected');
   });
 });
