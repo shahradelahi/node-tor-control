@@ -12,7 +12,7 @@
   ],
   "homepage": "https://github.com/shahradelahi/node-tor-control",
   "repository": "github:shahradelahi/node-tor-control",
-  "license": "GPL-3.0",
+  "license": "MIT",
   "author": "Shahrad Elahi <shahrad@litehex.com> (https://github.com/shahradelahi)",
   "type": "module",
   "exports": {

@@ -56,4 +56,4 @@ Thanks again for your support, it is much appreciated! 🙏
 
 ## License
 
-[GPL-3.0](/LICENSE) © [Shahrad Elahi](https://github.com/shahradelahi) and [contributors](https://github.com/shahradelahi/node-tor-control/graphs/contributors).
+[MIT](/LICENSE) © [Shahrad Elahi](https://github.com/shahradelahi) and [contributors](https://github.com/shahradelahi/node-tor-control/graphs/contributors).
