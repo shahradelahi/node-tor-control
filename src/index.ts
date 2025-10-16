@@ -1,10 +1,7 @@
 import { promises } from 'node:fs';
 import { connect, Socket } from 'node:net';
-import Debug from 'debug';
 
 import type { Result, ResultList, Signal, TorControlConfig } from '@/types';
-
-const debug = Debug('tor-ctrl');
 
 class TorControl implements Disposable {
   #connection: Socket | null = null;
@@ -72,7 +69,6 @@ class TorControl implements Disposable {
 
       conn.once('data', async (data) => {
         const str = data.toString();
-        debug('data:', str);
 
         if (str.substring(0, 3) !== '250') {
           return onError(`TorControl connection error: ${data}`);
@@ -138,10 +134,8 @@ class TorControl implements Disposable {
     return new Promise((resolve, reject) => {
       const onData = (data: Buffer) => {
         const str = data.toString();
-        debug('sendCommand:data', str);
 
         const lines = str.split(/\r?\n/).filter(Boolean);
-        debug('sendCommand:lines', lines);
 
         const result: ResultList = lines.map((line) => {
           const message = line.substring(4);
@@ -164,7 +158,6 @@ class TorControl implements Disposable {
       conn.once('data', onData);
       conn.once('error', onError);
 
-      debug('sendCommand:command', command);
       conn.write(`${command}\r\n`);
     });
   }
