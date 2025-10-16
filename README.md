@@ -3,6 +3,7 @@
 [![CI](https://github.com/shahradelahi/node-tor-control/actions/workflows/ci.yml/badge.svg)](https://github.com/shahradelahi/node-tor-control/actions/workflows/ci.yml)
 [![NPM Version](https://img.shields.io/npm/v/tor-ctrl)](https://www.npmjs.com/package/tor-ctrl)
 [![Install Size](https://packagephobia.com/badge?p=tor-ctrl)](https://packagephobia.com/result?p=tor-ctrl)
+![npm bundle size](https://img.shields.io/bundlephobia/minzip/tor-ctrl)
 [![License](https://img.shields.io/github/license/shahradelahi/node-tor-control)](/LICENSE)
 
 _tor-ctrl_ is a simple library to connect to a Tor control port and send commands to it.
